@@ -1,0 +1,145 @@
+---
+title: "Tripadvisor"
+author: "Sheetal & Sampoorna"
+date: "3/8/2018"
+output: html_document
+---
+
+
+HI All, the Aim over here is to scrap the details from the trip advisor page.
+Lets start withe step one loading the rvest libraries and opening the link for GOA hotesl for dae MAy 1 -May 5
+```{r setup, include=FALSE}
+library("rvest")
+library("XML")
+# IMDB Top 250 Movies
+url = "https://www.tripadvisor.in/Hotels-g297604-Goa-Hotels.html"
+page = read_html(url)
+
+page
+```
+
+## R Markdown
+
+Now the tag Prominent is storing the Hotel Name and link for the hotel search and details . We got to know this from CSS selector tool. So lets copy the Node details and check for the Node 1 in which format the data is stored.
+
+```{r cars}
+
+hotel.nodes = html_nodes(page,'.prominent')
+# Check one node
+xmlTreeParse(hotel.nodes[[1]])
+#hotel.nodes[[1]]
+```
+
+From the above we can see that hotel Name is stored in the Node and link details is stored in the tag a and node href.
+So am copying the link and appending it to https://www.tripadvisor.in
+
+
+```{r pressure, echo=FALSE}
+hotel.link = sapply(html_attrs(hotel.nodes),`[[`,'href')
+hotel.link = paste0("https://www.tripadvisor.in",hotel.link)
+
+hotel.name = html_text(hotel.nodes)
+
+```
+
+We now have the hotel names lets take it to next step and find the price of the room and amount we are saving on it.
+from CSS selector we found that the price is present on the node ".save.autoResize.ui_column.is-hidden-mobile" and saved ammount is present on the node ".price.autoResize".
+
+Found only 22 rows for save amount so adding extra 8 zeros in it.
+
+```{r}
+save.node = html_nodes(page,'.save.autoResize.ui_column.is-hidden-mobile')
+ 
+price.node = html_nodes(page,'.price.autoResize')
+# Check one node
+
+Save_amount = html_text(save.node)
+price = html_text(price.node)
+price= iconv(price, 'utf-8', 'ascii', sub='') 
+Save_amount= iconv(Save_amount, 'utf-8', 'ascii', sub='') 
+ Save_amount=gsub('SAVE ','',Save_amount)
+```
+
+
+```{r}
+if (length(Save_amount)!=30)
+{
+  for ( i in length(Save_amount):30){
+    Save_amount[i]=0
+  }
+}
+```
+
+Lets scrap in further more.
+Lets open each hotel link find out the rating, number of reviews,address and Facility.
+Rating and NUmber of review are present on same NOde -".rating"
+address is on  ".map-pin-fill"" 
+Facility is on ".highlightedAmenity" ( the data is recievied in list for which i have converted into comma seprated string.)
+
+
+
+
+```{r}
+
+rating_hotel=vector('character')
+review=vector('character')
+facility=vector('character')
+address=vector('character')
+
+for ( i in 1:length(hotel.link))
+{
+details = hotel.link[i]
+details_page = read_html(details)
+
+# Check one node
+##xmlTreeParse(price.nodes[[1]])
+
+rating.nodes = html_nodes(details_page,'.rating ') %>%
+  html_text()
+
+##
+
+rating= trimws(gsub('reviews',' ', rating.nodes))
+
+rating_review=tryCatch(strsplit(rating,' ')[[2]],
+           error = function(e) print(0))
+
+##print(rating_review)
+review[i]=tryCatch(rating_review[2],
+           error = function(e) print(0))
+rating_hotel[i]=tryCatch(rating_review[1],
+           error = function(e) print(0))
+
+
+  address.nodes = html_nodes(details_page,'.map-pin-fill ') %>%
+           html_text() 
+  
+  address[i]=gsub('See on map','',address.nodes[2])
+    
+
+facility.node = html_nodes(details_page,'.highlightedAmenity')
+ facility_list= tryCatch( html_text(facility.node)  ,
+                      error=function(e) print (0))
+ facility_str=facility_list[1]
+ for ( j in 2:length(facility_list)){
+   facility_str=paste0(facility_str,',',facility_list[j])
+ }
+ 
+facility[i]=facility_str
+
+}
+```
+
+
+Adding up all the columns and converting it into a dataframe.
+
+
+```{r}
+besthotel = data.frame(hotel.name,  hotel.link,rating_hotel,price,Save_amount,review,facility,address)
+besthotel
+```
+
+
+Here is the way you could scrape data from tripadvisor. if you need for different city or time, please change the data and copy the link here in URL variable.
+
+
